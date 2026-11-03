@@ -65,8 +65,8 @@ jalankan `nvidia-smi` untuk memastikan GPU dan driver terdeteksi.
 
 Pemeriksaan tersebut tidak menjalankan GPU RTX 5060 fisik. Paket menggunakan
 repository rolling release, sehingga ketersediaan paket dan versi driver dapat
-berubah. Build penuh belum dijalankan dari sesi macOS ini; workflow baru bisa
-menghasilkan ISO setelah dijalankan di akun GitHub Anda.
+berubah. Periksa status run di GitHub Actions; file ISO hanya diunggah setelah
+build dan semua pemeriksaan selesai dengan sukses.
 
 ## Referensi
 

@@ -32,7 +32,11 @@ trap 'printf "Build failed at line %s (exit %s). See build.log.\n" "$LINENO" "$?
 pacman-key --init
 pacman-key --populate archlinux
 pacman -Sy --noconfirm --needed archlinux-keyring
-pacman -Su --noconfirm --needed archiso curl gnupg git kmod
+pacman -Su --noconfirm --needed archiso curl gnupg git kmod mkinitcpio
+# Check verification tools before spending time installing and compressing the ISO.
+for tool in mkarchiso lsinitcpio modinfo xorriso; do
+    command -v "$tool" >/dev/null || fail "Missing builder tool: $tool"
+done
 
 # XeroBuild/archiso.readme explicitly targets archiso 91-1.
 # Verify the archived package against Arch's trusted keyring before downgrading.
