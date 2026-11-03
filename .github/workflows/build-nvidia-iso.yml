@@ -1,0 +1,86 @@
+name: Build XeroLinux NVIDIA ISO
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nvidia-iso-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: RTX 5060 / x86_64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Make room on the disposable runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo apt-get clean
+          df -h "$GITHUB_WORKSPACE"
+          available=$(df --output=avail -B1 "$GITHUB_WORKSPACE" | tail -n 1)
+          if (( available < 45 * 1024 * 1024 * 1024 )); then
+            echo 'At least 45 GiB of free disk space is required for this profile.' >&2
+            exit 1
+          fi
+
+      - name: Build in a privileged Arch Linux container
+        env:
+          XERO_SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          mkdir -p out
+          set -o pipefail
+          docker pull archlinux:base
+          docker image inspect archlinux:base --format '{{index .RepoDigests 0}}' > out/container-image.txt
+          docker run --rm --privileged \
+            --volume "$GITHUB_WORKSPACE:/workspace" \
+            --workdir /workspace \
+            --env XERO_SOURCE_COMMIT \
+            --env OUTPUT_DIR=/workspace/out \
+            --env WORK_DIR=/work \
+            archlinux:base \
+            bash .github/scripts/build-nvidia-iso.sh 2>&1 | tee out/build.log
+
+      - name: Upload ISO, checksum, and validation reports
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: xerolinux-nvidia-rtx5060-${{ github.run_number }}
+          path: |
+            out/*.iso
+            out/SHA256SUMS
+            out/*-report.txt
+            out/build-info.txt
+            out/container-image.txt
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Keep build logs even when the build fails
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: nvidia-build-logs-${{ github.run_number }}
+          path: |
+            out/*.log
+            out/*.txt
+          if-no-files-found: warn
+          retention-days: 3
+
+      - name: Show download instructions
+        run: |
+          {
+            echo '### XeroLinux NVIDIA ISO'
+            echo 'Download the xerolinux-nvidia-rtx5060 artifact below and extract the ZIP.'
+            echo 'Verify SHA256SUMS, then flash the .iso file with balenaEtcher.'
+            echo 'The build includes the upstream nVidia profile and open NVIDIA kernel modules.'
+            echo 'Boot metadata and driver files were checked; RTX 5060 hardware has not been tested.'
+            echo 'Artifacts are retained for 3 days.'
+          } >> "$GITHUB_STEP_SUMMARY"
